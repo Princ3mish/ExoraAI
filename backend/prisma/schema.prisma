@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum MeetingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id                   String         @id @default(uuid())
+  email                String         @unique
+  name                 String?
+  role                 Role           @default(USER)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  
+  organizedMeetings    Meeting[]      @relation("MeetingOrganizer")
+  participations       Participant[]
+  availabilities       Availability[]
+}
+
+model Meeting {
+  id           String         @id @default(uuid())
+  title        String
+  description  String?
+  startTime    DateTime
+  endTime      DateTime
+  status       MeetingStatus  @default(PENDING)
+  organizerId  String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  organizer    User           @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  participants Participant[]
+}
+
+model Participant {
+  userId    String
+  meetingId String
+  joinedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@id([meetingId, userId])
+}
+
+model Availability {
+  id         String   @id @default(uuid())
+  userId     String
+  dayOfWeek  Int      // 0 = Sunday, 1 = Monday, etc.
+  startTime  String   // e.g., "09:00"
+  endTime    String   // e.g., "17:00"
+  
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
