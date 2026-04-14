@@ -45,6 +45,8 @@ model Meeting {
 
   organizer    User           @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
   participants Participant[]
+
+  @@index([organizerId])
 }
 
 model Participant {
@@ -56,6 +58,7 @@ model Participant {
   meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@id([meetingId, userId])
+  @@index([userId])
 }
 
 model Availability {
@@ -66,4 +69,6 @@ model Availability {
   endTime    String   // e.g., "17:00"
   
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
