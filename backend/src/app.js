@@ -10,10 +10,13 @@ import participantRoutes from './api/participants/participants.routes.js';
 
 const app = express();
 
+// Phase 2: Enable CORS correctly for the frontend mapping
 app.use(cors());
+
+// Phase 2: Native JSON payload parsing
 app.use(express.json());
 
-// Request logging middleware
+// Phase 2: Request logging middleware tracking all inbound hits
 app.use((req, res, next) => {
   logger.info(`Incoming Request: ${req.method} ${req.url}`, {
     method: req.method,
@@ -23,24 +26,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// Mounted Routes
+// Phase 2: Mounted Modular API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/participants', participantRoutes);
 
+// General health check verification
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Trigger a sample error route for testing (Step 7 validation)
+// Phase 2: Trigger a sample error route for testing error handler logic
 app.get('/test-error', (req, res, next) => {
   const error = new Error('Test validation error');
   error.statusCode = 400;
-  next(error);
+  next(error); // Sends error through pipeline safely
 });
 
-// Use Global Error Handler
+// Phase 2: Catch-all Global Error Handler. Must be last middleware.
 app.use(errorHandler);
 
 export default app;
