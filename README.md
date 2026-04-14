@@ -45,3 +45,11 @@ Exora AI is a comprehensive full-stack application. This repository contains the
 - `main` - Production-ready code.
 - `dev` - Active development branch.
 - `feature/*` - Feature branches for development.
+
+## Phases Completed
+
+### Phase 2: Database & Core Architecture
+- **Prisma Data Model**: Designed and applied models for `User`, `Meeting`, `Participant` (explicit composite join), and `Availability` using PostgreSQL.
+- **Modular API Architecture**: Scaffolded feature-based routes (`/api/auth`, `/api/users`, `/api/meetings`, `/api/participants`) with separated `routes.js`, `controller.js`, and `service.js` layers.
+- **Winston Structured Logging**: Implemented a global robust `logger` outputting requested JSON metadata.
+- **Global Error Handling**: Built a centralized Express error wrapper masking 500 stack traces from the client while catching API faults cleanly.

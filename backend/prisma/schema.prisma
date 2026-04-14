@@ -1,3 +1,4 @@
+// Phase 2: Core Database schema implementation using Prisma ORM defining relational User/Meeting layout
 generator client {
   provider = "prisma-client-js"
 }
