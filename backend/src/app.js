@@ -1,16 +1,21 @@
 import express from 'express';
 import cors from 'cors';
+
 import logger from './utils/logger.js';
 import errorHandler from './middleware/errorHandler.js';
 import { PrismaClient } from '@prisma/client';
 
+// Phase 3: Feature Routers
 import authRoutes from './api/auth/auth.routes.js';
-import userRoutes from './api/users/users.routes.js';
 import meetingRoutes from './api/meetings/meetings.routes.js';
-import participantRoutes from './api/participants/participants.routes.js';
+import availabilityRoutes from './api/availability/availability.routes.js';
+
+
 
 const app = express();
 const prisma = new PrismaClient();
+
+// ── Core middleware ─────────────────────────────────────────────────────────
 
 // Phase 2: Enable CORS correctly for the frontend mapping
 app.use(cors());
@@ -33,11 +38,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Phase 2: Mounted Modular API Routes
+// ── API Routes ──────────────────────────────────────────────────────────────
+
+// Phase 3: Mounted Modular API Routes — auth, meetings, availability
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
 app.use('/api/meetings', meetingRoutes);
-app.use('/api/participants', participantRoutes);
+app.use('/api/availability', availabilityRoutes);
+
+// ── Health check ────────────────────────────────────────────────────────────
 
 // General health check verification including database connectivity
 app.get('/health', async (req, res) => {
@@ -56,6 +64,8 @@ app.get('/test-error', (req, res, next) => {
   error.statusCode = 400;
   next(error); // Sends error through pipeline safely
 });
+
+// ── Global Error Handler ────────────────────────────────────────────────────
 
 // Phase 2: Catch-all Global Error Handler. Must be last middleware.
 app.use(errorHandler);
