@@ -81,8 +81,10 @@ export const createMeeting = async (organizerId, { title, description, startTime
   const start = new Date(startTime);
   const end = new Date(endTime);
 
+  const uniqueParticipantIds = Array.from(new Set(participantIds));
+
   // Conflict detection pass — check every participant before any DB write
-  for (const userId of participantIds) {
+  for (const userId of uniqueParticipantIds) {
     const conflict = await findConflictingMeeting(userId, start, end);
     if (conflict) {
       logger.warn(`Scheduling conflict detected for user ${userId}: overlaps meeting ${conflict.meeting.id}`);
@@ -103,7 +105,7 @@ export const createMeeting = async (organizerId, { title, description, startTime
       endTime: end,
       organizerId,
       participants: {
-        create: participantIds.map((userId) => ({
+        create: uniqueParticipantIds.map((userId) => ({
           userId,
           status: 'PENDING',
         })),
@@ -213,3 +215,151 @@ export const respondToInvite = async (meetingId, userId, newStatus) => {
     meetingStatus,
   };
 };
+
+/**
+ * Get a single meeting by ID.
+ * Access control: ADMIN sees all, USER sees only if participant or organizer.
+ */
+export const getMeetingById = async (meetingId, userId, role) => {
+  const meeting = await prisma.meeting.findUnique({
+    where: { id: meetingId },
+    include: {
+      organizer: { select: { id: true, name: true, email: true } },
+      participants: { select: { userId: true, status: true } },
+    },
+  });
+
+  if (!meeting) {
+    const err = new Error('Meeting not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (role !== 'ADMIN') {
+    const isParticipant = meeting.participants.some((p) => p.userId === userId);
+    if (!isParticipant && meeting.organizerId !== userId) {
+      const err = new Error('You do not have permission to view this meeting.');
+      err.statusCode = 403;
+      throw err;
+    }
+  }
+
+  return meeting;
+};
+
+/**
+ * Update/reschedule a meeting (ADMIN only).
+ * Performs conflict re-checks for the updated time or participants.
+ * Resets participant status to PENDING if times or participants changed.
+ */
+export const updateMeeting = async (meetingId, payload) => {
+  const { title, description, startTime, endTime, participantIds } = payload;
+  
+  const existingMeeting = await prisma.meeting.findUnique({
+    where: { id: meetingId },
+    include: { participants: true },
+  });
+
+  if (!existingMeeting) {
+    const err = new Error('Meeting not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const start = startTime ? new Date(startTime) : existingMeeting.startTime;
+  const end = endTime ? new Date(endTime) : existingMeeting.endTime;
+
+  if (end <= start) {
+      const err = new Error('endTime must be after startTime.');
+      err.statusCode = 400;
+      throw err;
+  }
+
+  let finalParticipantIds = existingMeeting.participants.map(p => p.userId);
+  let participantsChanged = false;
+  if (participantIds) {
+    finalParticipantIds = Array.from(new Set(participantIds));
+    participantsChanged = true;
+  }
+
+  const timeChanged = startTime || endTime;
+
+  // Conflict detection pass
+  for (const userId of finalParticipantIds) {
+    const conflict = await findConflictingMeeting(userId, start, end, meetingId);
+    if (conflict) {
+      logger.warn(`Scheduling conflict detected for user ${userId} on update: overlaps meeting ${conflict.meeting.id}`);
+      const err = new Error(
+        `Scheduling conflict: user ${userId} already has an overlapping meeting "${conflict.meeting.title}" from ${conflict.meeting.startTime.toISOString()} to ${conflict.meeting.endTime.toISOString()}.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  const dataToUpdate = {
+    title,
+    description,
+    startTime: start,
+    endTime: end,
+  };
+
+  // If participants changed, we replace them
+  if (participantsChanged) {
+    dataToUpdate.participants = {
+      deleteMany: {}, // Clear existing
+      create: finalParticipantIds.map((userId) => ({
+        userId,
+        status: 'PENDING',
+      })),
+    };
+    dataToUpdate.status = 'PENDING';
+  }
+
+  const updatedMeeting = await prisma.meeting.update({
+    where: { id: meetingId },
+    data: dataToUpdate,
+    include: {
+      participants: {
+        select: { userId: true, status: true, joinedAt: true },
+      },
+    },
+  });
+
+  if (!participantsChanged && timeChanged) {
+    // Time changed, require all participants to re-accept
+    await prisma.participant.updateMany({
+      where: { meetingId },
+      data: { status: 'PENDING' }
+    });
+    const refreshedMeeting = await prisma.meeting.update({
+      where: { id: meetingId },
+      data: { status: 'PENDING' },
+      include: {
+        participants: { select: { userId: true, status: true, joinedAt: true } }
+      }
+    });
+    logger.info(`Meeting updated and reset to PENDING: ${refreshedMeeting.id}`);
+    return refreshedMeeting;
+  }
+
+  logger.info(`Meeting updated: ${updatedMeeting.id}`);
+  return updatedMeeting;
+};
+
+/**
+ * Delete/cancel a meeting (ADMIN only).
+ */
+export const deleteMeeting = async (meetingId) => {
+  const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
+  if (!meeting) {
+    const err = new Error('Meeting not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  await prisma.meeting.delete({ where: { id: meetingId } });
+  logger.info(`Meeting deleted: ${meetingId}`);
+  return { success: true };
+};
+

@@ -3,7 +3,13 @@ import * as meetingsController from './meetings.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { restrictTo } from '../../middleware/rbac.js';
 import { validateRequest } from '../../middleware/validateRequest.js';
-import { createMeetingSchema, respondToInviteSchema } from './meetings.schema.js';
+import {
+  createMeetingSchema,
+  respondToInviteSchema,
+  getMeetingSchema,
+  updateMeetingSchema,
+  deleteMeetingSchema,
+} from './meetings.schema.js';
 
 const router = Router();
 
@@ -12,6 +18,9 @@ const router = Router();
  *
  * POST /api/meetings              — Create a meeting (ADMIN only)
  * GET  /api/meetings              — List meetings (ADMIN: all, USER: own)
+ * GET  /api/meetings/:id          — Get meeting by ID (ADMIN or participant)
+ * PUT  /api/meetings/:id          — Update/reschedule a meeting (ADMIN only)
+ * DELETE /api/meetings/:id        — Delete a meeting (ADMIN only)
  * PUT  /api/meetings/:id/respond  — Respond to an invitation (authenticated users)
  */
 
@@ -24,6 +33,29 @@ router.post(
 );
 
 router.get('/', authenticate, meetingsController.getMeetings);
+
+router.get(
+  '/:id',
+  authenticate,
+  validateRequest(getMeetingSchema),
+  meetingsController.getMeetingById
+);
+
+router.put(
+  '/:id',
+  authenticate,
+  restrictTo(['ADMIN']),
+  validateRequest(updateMeetingSchema),
+  meetingsController.updateMeeting
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  restrictTo(['ADMIN']),
+  validateRequest(deleteMeetingSchema),
+  meetingsController.deleteMeeting
+);
 
 router.put(
   '/:id/respond',

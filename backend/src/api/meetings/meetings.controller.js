@@ -25,3 +25,22 @@ export const respondToInvite = asyncHandler(async (req, res) => {
   const result = await meetingsService.respondToInvite(meetingId, userId, status);
   res.status(200).json({ status: 200, ...result });
 });
+
+export const getMeetingById = asyncHandler(async (req, res) => {
+  const { userId, role } = req.user;
+  const { id: meetingId } = req.params;
+  const meeting = await meetingsService.getMeetingById(meetingId, userId, role);
+  res.status(200).json({ status: 200, message: 'Meeting retrieved.', data: meeting });
+});
+
+export const updateMeeting = asyncHandler(async (req, res) => {
+  const { id: meetingId } = req.params;
+  const meeting = await meetingsService.updateMeeting(meetingId, req.body);
+  res.status(200).json({ status: 200, message: 'Meeting updated successfully.', data: meeting });
+});
+
+export const deleteMeeting = asyncHandler(async (req, res) => {
+  const { id: meetingId } = req.params;
+  const result = await meetingsService.deleteMeeting(meetingId);
+  res.status(200).json({ status: 200, message: 'Meeting deleted successfully.', data: result });
+});
