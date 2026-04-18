@@ -29,8 +29,14 @@ export const registerUser = async ({ email, password, name, role }) => {
     select: { id: true, email: true, name: true, role: true, createdAt: true },
   });
 
+  const token = jwt.sign(
+    { userId: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
+
   logger.info(`User registered: ${user.id} (${user.email})`);
-  return user;
+  return { token, user };
 };
 
 export const loginUser = async ({ email, password }) => {
@@ -59,4 +65,17 @@ export const loginUser = async ({ email, password }) => {
     token,
     user: { id: user.id, email: user.email, name: user.name, role: user.role },
   };
+};
+
+export const getProfile = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true, role: true, createdAt: true },
+  });
+  if (!user) {
+    const err = new Error('User not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+  return user;
 };

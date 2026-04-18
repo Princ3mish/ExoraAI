@@ -9,8 +9,10 @@ import { PrismaClient } from '@prisma/client';
 import authRoutes from './api/auth/auth.routes.js';
 import meetingRoutes from './api/meetings/meetings.routes.js';
 import availabilityRoutes from './api/availability/availability.routes.js';
+import userRoutes from './api/users/users.routes.js';
 
-
+// Phase 4: AI Integration
+import aiRoutes from './api/ai/ai.routes.js';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -40,10 +42,14 @@ app.use((req, res, next) => {
 
 // ── API Routes ──────────────────────────────────────────────────────────────
 
-// Phase 3: Mounted Modular API Routes — auth, meetings, availability
+// Phase 3: Mounted Modular API Routes — auth, meetings, availability, users
 app.use('/api/auth', authRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/availability', availabilityRoutes);
+app.use('/api/users', userRoutes);
+
+// Phase 4: AI Integration Routes
+app.use('/api/ai', aiRoutes);
 
 // ── Health check ────────────────────────────────────────────────────────────
 

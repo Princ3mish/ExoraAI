@@ -52,6 +52,7 @@ model Meeting {
 
   organizer    User           @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
   participants Participant[]
+  aiResults    AIResult[]
 
   @@index([organizerId])
 }
@@ -78,4 +79,16 @@ model Availability {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model AIResult {
+  id         String   @id @default(uuid())
+  meetingId  String
+  taskType   String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
 }
