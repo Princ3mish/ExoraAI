@@ -1,13 +1,22 @@
-// Phase 2: Controller layer properly mapping HTTP lifecycle request interfaces securely towards service business code
 import * as authService from './auth.service.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
 
-export const login = async (req, res, next) => {
-  try {
-    // Escalate actual business logic out of the controller
-    const data = await authService.scaffoldAuthService();
-    res.status(200).json({ status: 200, message: "Login successful (dummy)", data });
-  } catch (error) {
-    // Phase 2: Ensure controller errors propagate into the global catch blocks cleanly
-    next(error);
-  }
-};
+/**
+ * Phase 3: Auth Controller — thin HTTP layer. Delegates all logic to authService.
+ * Returns structured JSON; errors propagate via next() to the global errorHandler.
+ */
+
+export const register = asyncHandler(async (req, res) => {
+  const result = await authService.registerUser(req.body);
+  res.status(201).json({ status: 201, message: 'Account created successfully.', data: result });
+});
+
+export const login = asyncHandler(async (req, res) => {
+  const result = await authService.loginUser(req.body);
+  res.status(200).json({ status: 200, message: 'Login successful.', data: result });
+});
+
+export const me = asyncHandler(async (req, res) => {
+  const user = await authService.getProfile(req.user.userId);
+  res.status(200).json({ status: 200, data: { user } });
+});

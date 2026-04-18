@@ -1,4 +1,4 @@
-// Phase 2: Core Database schema implementation using Prisma ORM defining relational User/Meeting layout
+// Phase 3: Expanded schema with auth (password), ParticipantStatus workflow, and original Phase 2 relational layout
 generator client {
   provider = "prisma-client-js"
 }
@@ -19,10 +19,17 @@ enum MeetingStatus {
   CANCELLED
 }
 
+enum ParticipantStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model User {
   id                   String         @id @default(uuid())
   email                String         @unique
   name                 String?
+  password             String
   role                 Role           @default(USER)
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
@@ -45,25 +52,43 @@ model Meeting {
 
   organizer    User           @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
   participants Participant[]
+  aiResults    AIResult[]
+
+  @@index([organizerId])
 }
 
 model Participant {
   userId    String
   meetingId String
-  joinedAt  DateTime @default(now())
+  status    ParticipantStatus @default(PENDING)
+  joinedAt  DateTime          @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@id([meetingId, userId])
+  @@index([userId])
 }
 
 model Availability {
   id         String   @id @default(uuid())
   userId     String
-  dayOfWeek  Int      // 0 = Sunday, 1 = Monday, etc.
-  startTime  String   // e.g., "09:00"
-  endTime    String   // e.g., "17:00"
+  startTime  DateTime
+  endTime    DateTime
   
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AIResult {
+  id         String   @id @default(uuid())
+  meetingId  String
+  taskType   String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
 }
