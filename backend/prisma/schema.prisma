@@ -37,6 +37,7 @@ model User {
   organizedMeetings    Meeting[]      @relation("MeetingOrganizer")
   participations       Participant[]
   availabilities       Availability[]
+  events               AIEvent[]      @relation("UserEvents")
 }
 
 model Meeting {
@@ -53,6 +54,7 @@ model Meeting {
   organizer    User           @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
   participants Participant[]
   aiResults    AIResult[]
+  events       AIEvent[]      @relation("MeetingEvents")
 
   @@index([organizerId])
 }
@@ -91,4 +93,22 @@ model AIResult {
   meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
 
   @@index([meetingId])
+}
+
+model AIEvent {
+  id        String   @id @default(cuid())
+  type      String
+  message   String
+  status    String   @default("success")
+  meetingId String?
+  userId    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  meeting   Meeting? @relation("MeetingEvents", fields: [meetingId], references: [id], onDelete: SetNull)
+  user      User?    @relation("UserEvents", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId])
+  @@index([userId])
+  @@index([createdAt])
 }

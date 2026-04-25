@@ -26,6 +26,15 @@ export const summarySchema = {
   }),
 };
 
+// Phase 6: Voice simulation schema
+export const simulateCallSchema = {
+  body: z.object({
+    meetingId: z.string().uuid({ message: 'meetingId must be a valid UUID.' }),
+    participantName: z.string().min(1, { message: 'participantName is required.' }),
+    participantEmail: z.string().email({ message: 'participantEmail must be a valid email.' }),
+  }),
+};
+
 // ─── Output Schemas for AI Integration ──────────────────────────────────────
 
 export const suggestTimesOutputSchema = z.object({

@@ -14,6 +14,9 @@ import userRoutes from './api/users/users.routes.js';
 // Phase 4: AI Integration
 import aiRoutes from './api/ai/ai.routes.js';
 
+// Phase 6: Events Log
+import eventsRoutes from './api/events/events.routes.js';
+
 const app = express();
 const prisma = new PrismaClient();
 
@@ -50,6 +53,9 @@ app.use('/api/users', userRoutes);
 
 // Phase 4: AI Integration Routes
 app.use('/api/ai', aiRoutes);
+
+// Phase 6: Real-time Events Polling
+app.use('/api/events', eventsRoutes);
 
 // ── Health check ────────────────────────────────────────────────────────────
 

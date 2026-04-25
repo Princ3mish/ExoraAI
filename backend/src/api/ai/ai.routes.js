@@ -3,7 +3,7 @@ import * as aiController from './ai.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { restrictTo } from '../../middleware/rbac.js';
 import { validateRequest } from '../../middleware/validateRequest.js';
-import { suggestTimesSchema, draftEmailSchema, summarySchema } from './ai.schema.js';
+import { suggestTimesSchema, draftEmailSchema, summarySchema, simulateCallSchema } from './ai.schema.js';
 
 const router = Router();
 
@@ -36,6 +36,15 @@ router.post(
   authenticate,
   validateRequest(summarySchema),
   aiController.summary
+);
+
+// Phase 6: Voice simulation
+router.post(
+  '/simulate-call',
+  authenticate,
+  restrictTo(['ADMIN']),
+  validateRequest(simulateCallSchema),
+  aiController.simulateCall
 );
 
 export default router;

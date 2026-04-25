@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import logger from '../../utils/logger.js';
+import { logEvent } from '../../utils/logEvent.js';
+import { sendBulkEmail } from '../../services/email.service.js';
 
 const prisma = new PrismaClient();
 
@@ -71,6 +73,77 @@ const recalculateMeetingStatus = async (meetingId) => {
   return newMeetingStatus;
 };
 
+// ─── Phase 6: Fire-and-forget email helper ───────────────────────────────────
+
+/**
+ * Send invite emails to all participants after a meeting is created.
+ * Uses AI to draft the email; falls back to a plain-text template if AI fails.
+ * Non-blocking: all errors are caught and logged via logEvent.
+ */
+const _sendMeetingInviteEmails = async (meeting, organizerId) => {
+  try {
+    const participants = await prisma.participant.findMany({
+      where: { meetingId: meeting.id },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+
+    await logEvent({
+      type: 'AI_ACTION',
+      message: `AI drafting invite email for "${meeting.title}"`,
+      status: 'pending',
+      meetingId: meeting.id,
+      userId: organizerId,
+    });
+
+    // Fallback email template (used if AI fails)
+    let emailSubject = `Meeting Invitation: ${meeting.title}`;
+    let emailBody = `You have been invited to "${meeting.title}".\n\nStart: ${meeting.startTime.toISOString()}\nEnd: ${meeting.endTime.toISOString()}\n\nPlease log in to Exora AI to respond to this invitation.`;
+
+    try {
+      // Dynamically import to avoid circular deps at module load time
+      const { generateCompletion } = await import('../../services/ai.service.js');
+      const { TASK_TYPES } = await import('../../utils/ai.prompts.js');
+      const participantsForAI = participants.map(p => ({ name: p.user.name, email: p.user.email }));
+      const aiResult = await generateCompletion({
+        taskType: TASK_TYPES.DRAFT_EMAIL,
+        input: {
+          contextType: 'invite',
+          meeting: {
+            title: meeting.title,
+            description: meeting.description,
+            startTime: meeting.startTime.toISOString(),
+            endTime: meeting.endTime.toISOString(),
+          },
+          participants: participantsForAI,
+        },
+        metadata: { userId: organizerId, meetingId: meeting.id },
+      });
+      if (aiResult?.subject) emailSubject = aiResult.subject;
+      if (aiResult?.body) emailBody = aiResult.body;
+      await logEvent({
+        type: 'AI_ACTION',
+        message: `AI email draft ready for "${meeting.title}"`,
+        status: 'success',
+        meetingId: meeting.id,
+        userId: organizerId,
+      });
+    } catch (aiErr) {
+      await logEvent({
+        type: 'ERROR',
+        message: `AI email draft failed, using fallback template: ${aiErr.message}`,
+        status: 'failed',
+        meetingId: meeting.id,
+        userId: organizerId,
+      });
+    }
+
+    const recipients = participants.map(p => ({ email: p.user.email, userId: p.user.id }));
+    await sendBulkEmail({ recipients, subject: emailSubject, body: emailBody, meetingId: meeting.id });
+  } catch (err) {
+    logger.error('[_sendMeetingInviteEmails] Unexpected error', { error: err.message, meetingId: meeting.id });
+  }
+};
+
 // ─── Service Methods ─────────────────────────────────────────────────────────
 
 /**
@@ -119,6 +192,20 @@ export const createMeeting = async (organizerId, { title, description, startTime
   });
 
   logger.info(`Meeting created: ${meeting.id} "${meeting.title}" by organizer ${organizerId}`);
+
+  // Phase 6: Log SYSTEM event for meeting creation
+  await logEvent({
+    type: 'SYSTEM',
+    message: `Meeting "${meeting.title}" created with ${meeting.participants.length} participant(s)`,
+    status: 'success',
+    meetingId: meeting.id,
+    userId: organizerId,
+    metadata: { participantCount: meeting.participants.length },
+  });
+
+  // Phase 6: Fire-and-forget email — does not block API response
+  _sendMeetingInviteEmails(meeting, organizerId).catch(() => {});
+
   return meeting;
 };
 
@@ -208,6 +295,16 @@ export const respondToInvite = async (meetingId, userId, newStatus) => {
   const meetingStatus = await recalculateMeetingStatus(meetingId);
 
   logger.info(`User ${userId} ${newStatus} meeting ${meetingId}. Meeting status → ${meetingStatus}`);
+
+  // Phase 6: Log USER_RESPONSE event
+  await logEvent({
+    type: 'USER_RESPONSE',
+    message: `User ${userId} ${newStatus.toLowerCase()} meeting (status → ${meetingStatus})`,
+    status: 'success',
+    meetingId,
+    userId,
+    metadata: { participantStatus: newStatus, meetingStatus },
+  });
 
   return {
     message: `Meeting ${newStatus.toLowerCase()} successfully.`,

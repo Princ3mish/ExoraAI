@@ -3,6 +3,9 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { generateCompletion, preProcessAvailability } from '../../services/ai.service.js';
 import { TASK_TYPES } from '../../utils/ai.prompts.js';
 import logger from '../../utils/logger.js';
+import { logEvent } from '../../utils/logEvent.js';
+import * as groqProvider from '../../services/providers/groq.provider.js';
+import * as openrouterProvider from '../../services/providers/openrouter.provider.js';
 
 const prisma = new PrismaClient();
 
@@ -164,5 +167,78 @@ export const summary = asyncHandler(async (req, res) => {
     status: 200,
     message: 'Meeting summary generated.',
     data,
+  });
+});
+
+// ── POST /api/ai/simulate-call (ADMIN only) ──────────────────────────────────
+
+export const simulateCall = asyncHandler(async (req, res) => {
+  const { meetingId, participantName, participantEmail } = req.body;
+  const { userId } = req.user;
+
+  // Log initiation
+  await logEvent({
+    type: 'SIMULATION',
+    message: `Initiating AI call to ${participantName} (${participantEmail})\u2026`,
+    status: 'pending',
+    meetingId,
+    userId,
+    metadata: { participantName, participantEmail },
+  });
+
+  const meeting = await prisma.meeting.findUnique({
+    where: { id: meetingId },
+    select: { title: true, startTime: true, endTime: true },
+  });
+
+  if (!meeting) {
+    const err = new Error('Meeting not found.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const systemPrompt = 'You are a call script generator. Output ONLY valid JSON — no markdown, no explanation.';
+  const userPrompt = `Generate a realistic phone call script between an AI scheduler named "Exora" and ${participantName} about the meeting "${meeting.title}" scheduled ${meeting.startTime.toISOString()} to ${meeting.endTime.toISOString()}. Exora is checking if ${participantName} can attend and resolving any concerns. Return JSON: {"script":[{"speaker":"Exora","line":"..."},{"speaker":"${participantName}","line":"..."}]} with 6-8 alternating turns.`;
+
+  let script = [];
+  try {
+    let result;
+    try {
+      result = await groqProvider.generateCompletion(userPrompt, systemPrompt);
+    } catch {
+      result = await openrouterProvider.generateCompletion(userPrompt, systemPrompt);
+    }
+
+    let cleaned = result.content.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+    const parsed = JSON.parse(cleaned);
+    script = parsed.script || [];
+  } catch {
+    // Fallback script
+    script = [
+      { speaker: 'Exora', line: `Hello ${participantName}, this is Exora AI calling about the meeting "${meeting.title}".` },
+      { speaker: participantName, line: 'Yes, I received the invitation. What can I help you with?' },
+      { speaker: 'Exora', line: `The meeting is scheduled for ${meeting.startTime.toISOString()}. Are you available?` },
+      { speaker: participantName, line: 'Let me check... Yes, that time works for me.' },
+      { speaker: 'Exora', line: 'Wonderful! I will mark you as confirmed. Is there anything you would like to discuss beforehand?' },
+      { speaker: participantName, line: 'No, I think I have everything I need. Thank you for checking!' },
+    ];
+  }
+
+  await logEvent({
+    type: 'SIMULATION',
+    message: `Call script generated for ${participantName} \u2014 ${script.length} turns`,
+    status: 'success',
+    meetingId,
+    userId,
+    metadata: { participantName, turnCount: script.length },
+  });
+
+  res.status(200).json({
+    status: 200,
+    message: 'Call simulation script generated.',
+    data: { script, participantName, meetingId },
   });
 });
