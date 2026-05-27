@@ -7,12 +7,21 @@
  * without touching orchestration logic.
  */
 
+// Phase R1: Import proper builders added in src/prompts.js
+import {
+  AGENDA_EXTRACTION_PROMPT,
+  INTENT_EXTRACTION_PROMPT,
+} from '../prompts.js';
+
 // ─── Task Type Constants ────────────────────────────────────────────────────
 
 export const TASK_TYPES = Object.freeze({
-  SUGGEST_TIMES: 'SUGGEST_TIMES',
-  DRAFT_EMAIL: 'DRAFT_EMAIL',
-  SUMMARIZE_MEETING: 'SUMMARIZE_MEETING',
+  SUGGEST_TIMES:      'SUGGEST_TIMES',
+  DRAFT_EMAIL:        'DRAFT_EMAIL',
+  SUMMARIZE_MEETING:  'SUMMARIZE_MEETING',
+  // Phase R1
+  AGENDA_EXTRACTION:  'AGENDA_EXTRACTION',
+  INTENT_EXTRACTION:  'INTENT_EXTRACTION',
 });
 
 // ─── SUGGEST_TIMES — v1 ─────────────────────────────────────────────────────
@@ -158,7 +167,10 @@ export function SUMMARIZE_MEETING_V1({ meeting, notes }) {
  * The AI service looks up the right builder by taskType at runtime.
  */
 export const PROMPT_REGISTRY = Object.freeze({
-  [TASK_TYPES.SUGGEST_TIMES]: SUGGEST_TIMES_V1,
-  [TASK_TYPES.DRAFT_EMAIL]: DRAFT_EMAIL_V1,
+  [TASK_TYPES.SUGGEST_TIMES]:     SUGGEST_TIMES_V1,
+  [TASK_TYPES.DRAFT_EMAIL]:       DRAFT_EMAIL_V1,
   [TASK_TYPES.SUMMARIZE_MEETING]: SUMMARIZE_MEETING_V1,
+  // Phase R1 — full builders imported from src/prompts.js
+  [TASK_TYPES.AGENDA_EXTRACTION]: AGENDA_EXTRACTION_PROMPT,
+  [TASK_TYPES.INTENT_EXTRACTION]: INTENT_EXTRACTION_PROMPT,
 });

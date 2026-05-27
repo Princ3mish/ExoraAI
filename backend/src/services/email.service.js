@@ -1,42 +1,93 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import logger from '../utils/logger.js';
 import { logEvent } from '../utils/logEvent.js';
 
 /**
- * Phase 6: Email Service — Nodemailer Gmail SMTP.
+ * Email Service — Resend SDK.
  * All sends are fire-and-forget; failures NEVER propagate to callers.
+ *
+ * Startup check: if RESEND_API_KEY is missing, log a warning once and skip
+ * all sends gracefully (no crash).
  */
 
-const createTransporter = () => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    logger.warn('[EmailService] EMAIL_USER or EMAIL_PASS not configured — email sending disabled');
-    return null;
-  }
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-};
+if (!process.env.RESEND_API_KEY) {
+  logger.warn('[EmailService] RESEND_API_KEY not configured — email sending disabled');
+}
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+const FROM_ADDRESS = 'Exora AI <onboarding@resend.dev>';
+
+// ─── Shared HTML layout helpers ───────────────────────────────────────────────
+
+const htmlWrapper = (bodyContent) => `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#6366F1;padding:20px 40px;height:60px;text-align:center;">
+              <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;">Exora AI</p>
+              <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.8);line-height:1;">Your AI-Powered Meeting Assistant</p>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px;">
+              ${bodyContent}
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 40px 28px;background-color:#F5F0E8;text-align:center;">
+              <p style="margin:0 0 4px;font-size:12px;color:#78716C;line-height:1.5;">
+                &copy; 2026 Exora AI &mdash; Your AI-Powered Meeting Assistant
+              </p>
+              <p style="margin:0;font-size:12px;color:#78716C;line-height:1.5;">
+                This email was sent by Exora AI on behalf of your meeting organizer.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+const detailsBox = (rows) => `
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8f9fb;border-radius:8px;padding:20px;margin:20px 0;">
+    ${rows.map(([label, value]) => `
+    <tr>
+      <td style="padding:6px 0;font-size:13px;color:#6b7280;width:140px;vertical-align:top;">${label}</td>
+      <td style="padding:6px 0;font-size:14px;color:#111827;font-weight:500;">${value}</td>
+    </tr>`).join('')}
+  </table>`;
+
+// ─── Low-level send (used by sendEmail / sendBulkEmail) ───────────────────────
 
 /**
- * Send an email to a single recipient.
+ * Send an HTML email via Resend.
  * @param {object} opts
- * @param {string} opts.to         - Recipient email address
- * @param {string} opts.subject    - Email subject line
- * @param {string} opts.body       - Plain text body
+ * @param {string} opts.to
+ * @param {string} opts.subject
+ * @param {string} opts.html      - Full HTML string
+ * @param {string} [opts.text]    - Optional plain-text fallback
  * @param {string} [opts.meetingId]
  * @param {string} [opts.userId]
  */
-export async function sendEmail({ to, subject, body, meetingId, userId }) {
-  const transporter = createTransporter();
-
-  if (!transporter) {
+async function _send({ to, subject, html, text, meetingId, userId }) {
+  if (!resend) {
     await logEvent({
       type: 'ERROR',
-      message: `Email skipped for ${to}: credentials not configured`,
+      message: `Email skipped for ${to}: RESEND_API_KEY not configured`,
       status: 'failed',
       meetingId,
       userId,
@@ -46,11 +97,12 @@ export async function sendEmail({ to, subject, body, meetingId, userId }) {
   }
 
   try {
-    await transporter.sendMail({
-      from: `"Exora AI" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+      from: FROM_ADDRESS,
       to,
       subject,
-      text: body,
+      html,
+      ...(text ? { text } : {}),
     });
 
     await logEvent({
@@ -62,7 +114,7 @@ export async function sendEmail({ to, subject, body, meetingId, userId }) {
       metadata: { to, subject },
     });
 
-    logger.info(`[EmailService] Sent to ${to}`, { to, meetingId });
+    logger.info(`[EmailService] Sent to ${to}`, { to, subject, meetingId });
   } catch (err) {
     await logEvent({
       type: 'ERROR',
@@ -76,6 +128,25 @@ export async function sendEmail({ to, subject, body, meetingId, userId }) {
     logger.error(`[EmailService] Failed to send to ${to}`, { error: err.message });
     // Never rethrow — caller must not crash on email failure
   }
+}
+
+// ─── Generic helpers (kept for backward compatibility with existing callers) ──
+
+/**
+ * Send a plain-text email to a single recipient.
+ * Existing callers (messageHandler, meetings.service) use this via sendBulkEmail.
+ * @param {object} opts
+ * @param {string} opts.to
+ * @param {string} opts.subject
+ * @param {string} opts.body       - Plain text body (wrapped in minimal HTML)
+ * @param {string} [opts.meetingId]
+ * @param {string} [opts.userId]
+ */
+export async function sendEmail({ to, subject, body, meetingId, userId }) {
+  const html = htmlWrapper(`
+    <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6;">${body.replace(/\n/g, '<br>')}</p>
+  `);
+  await _send({ to, subject, html, text: body, meetingId, userId });
 }
 
 /**
@@ -93,4 +164,129 @@ export async function sendBulkEmail({ recipients, subject, body, meetingId }) {
       sendEmail({ to: email, subject, body, meetingId, userId })
     )
   );
+}
+
+// ─── Meeting-specific email helpers ──────────────────────────────────────────
+
+/**
+ * Send a meeting invitation email.
+ * @param {string} to
+ * @param {object} opts
+ * @param {string} opts.name
+ * @param {string} opts.meetingTitle
+ * @param {string} opts.meetingTime    - Pre-formatted date/time string
+ * @param {string} opts.organizerName
+ * @param {string} opts.meetingId
+ */
+export async function sendMeetingInvite(to, { name, meetingTitle, meetingTime, organizerName, meetingId }) {
+  const subject = `Meeting invite: ${meetingTitle}`;
+
+  const html = htmlWrapper(`
+    <h1 style="margin:0 0 8px;font-size:22px;color:#111827;font-weight:700;">You've been invited to a meeting</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#6b7280;">Hi ${name || 'there'},</p>
+
+    <h2 style="margin:0 0 4px;font-size:20px;color:#6366F1;font-weight:700;">${meetingTitle}</h2>
+
+    ${detailsBox([
+      ['📅 Date & Time', meetingTime],
+      ['👤 Organizer', organizerName],
+    ])}
+
+    <p style="margin:20px 0 0;font-size:14px;color:#374151;line-height:1.6;">
+      Got it — no action needed right now. You'll hear from us before the meeting starts.
+    </p>
+  `);
+
+  try {
+    await _send({ to, subject, html, meetingId });
+    logger.info('[EmailService] Sent invite', { to, meetingTitle });
+    return { success: true };
+  } catch (err) {
+    logger.error('[EmailService] Failed', { to, error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Send a meeting confirmation email.
+ * @param {string} to
+ * @param {object} opts
+ * @param {string}   opts.name
+ * @param {string}   opts.meetingTitle
+ * @param {string}   opts.meetingTime
+ * @param {string[]} opts.agendaTopics
+ */
+export async function sendMeetingConfirmation(to, { name, meetingTitle, meetingTime, agendaTopics }) {
+  const subject = `Confirmed: ${meetingTitle}`;
+
+  const agendaHtml = agendaTopics && agendaTopics.length > 0
+    ? `<ul style="margin:8px 0 0;padding-left:20px;font-size:14px;color:#374151;line-height:1.8;">
+        ${agendaTopics.map((t) => `<li>${t}</li>`).join('')}
+      </ul>`
+    : `<p style="margin:4px 0 0;font-size:14px;color:#6b7280;">No agenda topics yet.</p>`;
+
+  const html = htmlWrapper(`
+    <h1 style="margin:0 0 8px;font-size:22px;color:#111827;font-weight:700;">Your meeting is confirmed ✓</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#6b7280;">Hi ${name || 'there'},</p>
+
+    <h2 style="margin:0 0 4px;font-size:20px;color:#6366F1;font-weight:700;">${meetingTitle}</h2>
+
+    ${detailsBox([
+      ['📅 Date & Time', meetingTime],
+    ])}
+
+    <div style="margin:20px 0 0;">
+      <p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#374151;">Agenda Topics</p>
+      ${agendaHtml}
+    </div>
+  `);
+
+  try {
+    await _send({ to, subject, html });
+    logger.info('[EmailService] Sent confirmation', { to, meetingTitle });
+    return { success: true };
+  } catch (err) {
+    logger.error('[EmailService] Failed', { to, error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Send a meeting cancellation email.
+ * @param {string} to
+ * @param {object} opts
+ * @param {string} opts.name
+ * @param {string} opts.meetingTitle
+ * @param {string} opts.meetingTime
+ */
+export async function sendMeetingCancellation(to, { name, meetingTitle, meetingTime }) {
+  const subject = `Cancelled: ${meetingTitle}`;
+
+  const html = htmlWrapper(`
+    <h1 style="margin:0 0 8px;font-size:22px;color:#111827;font-weight:700;">Meeting Cancelled</h1>
+    <p style="margin:0 0 24px;font-size:15px;color:#6b7280;">Hi ${name || 'there'},</p>
+
+    <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6;">
+      We're sorry to let you know that the following meeting has been cancelled:
+    </p>
+
+    <h2 style="margin:0 0 4px;font-size:20px;color:#6366F1;font-weight:700;">${meetingTitle}</h2>
+
+    ${detailsBox([
+      ['📅 Was scheduled for', meetingTime],
+    ])}
+
+    <p style="margin:20px 0 0;font-size:14px;color:#374151;line-height:1.6;">
+      If you have any questions, please contact the meeting organizer directly.
+    </p>
+  `);
+
+  try {
+    await _send({ to, subject, html });
+    logger.info('[EmailService] Sent cancellation', { to, meetingTitle });
+    return { success: true };
+  } catch (err) {
+    logger.error('[EmailService] Failed', { to, error: err.message });
+    return { success: false, error: err.message };
+  }
 }

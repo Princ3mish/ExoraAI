@@ -17,6 +17,16 @@ import aiRoutes from './api/ai/ai.routes.js';
 // Phase 6: Events Log
 import eventsRoutes from './api/events/events.routes.js';
 
+// Phase R1: Bot sessions + Voice calls
+import botApiRoutes from './api/bot/bot.routes.js';
+import voiceRoutes from './api/voice/voice.routes.js';
+import settingsRoutes from './api/settings/settings.routes.js';
+import analyticsRoutes from './api/analytics/analytics.routes.js';
+
+// Phase R2: Grammy Telegram webhook
+import { botWebhook } from './bot/bot.js';
+
+
 const app = express();
 const prisma = new PrismaClient();
 
@@ -25,8 +35,15 @@ const prisma = new PrismaClient();
 // Phase 2: Enable CORS correctly for the frontend mapping
 app.use(cors());
 
-// Phase 2: Native JSON payload parsing
+// Phase R2: Grammy Telegram webhook.
+// express.json() is added inline so Grammy receives a pre-parsed req.body.
+// Logging is handled inside bot.js where body is guaranteed to be available.
+// This route must be defined before the global express.json() below.
+app.post('/api/bot/telegram', express.json(), botWebhook);
+
+// Phase 2: Native JSON payload parsing for all other routes
 app.use(express.json());
+
 
 // Phase 2: Request logging middleware tracking all inbound hits, status codes, and duration
 app.use((req, res, next) => {
@@ -50,12 +67,19 @@ app.use('/api/auth', authRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
 
 // Phase 4: AI Integration Routes
 app.use('/api/ai', aiRoutes);
 
 // Phase 6: Real-time Events Polling
 app.use('/api/events', eventsRoutes);
+
+// Phase R1: Bot sessions (REST) + Voice calls
+app.use('/api/bot', botApiRoutes);
+app.use('/api/voice', voiceRoutes);
 
 // ── Health check ────────────────────────────────────────────────────────────
 

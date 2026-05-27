@@ -2,6 +2,7 @@ import { envConfig } from './config/env.js';
 import app from './app.js';
 import logger from './utils/logger.js';
 import { PrismaClient } from '@prisma/client';
+import { startVoiceCallScheduler } from './jobs/voiceCallScheduler.js';
 
 const prisma = new PrismaClient();
 
@@ -12,9 +13,12 @@ async function startServer() {
     logger.info('Database connected successfully.');
 
     const PORT = envConfig.port || 4000;
-    
+
     app.listen(PORT, () => {
       logger.info(`Server started. Listening on port ${PORT}`);
+
+      // Phase R1: Start background cron jobs after server is live
+      startVoiceCallScheduler();
     });
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
@@ -23,3 +27,4 @@ async function startServer() {
 }
 
 startServer();
+

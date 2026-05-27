@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { apiClient } from '../api/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import api from '@/lib/api';
 import { Label } from '@/components/ui/label';
+import { PressButton } from '@/components/ui/PressButton';
+import { Logo } from '@/components/ui/Logo';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -22,67 +21,84 @@ export default function Login() {
     setError('');
 
     try {
-      const response = await apiClient.post('/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password });
       const { token, user } = response.data.data;
       login(token, user);
       navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setError(axiosErr.response?.data?.message || 'Login failed.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-muted/40">
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-        <Card className="w-full max-w-md shadow-lg">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold tracking-tight">Welcome back</CardTitle>
-            <CardDescription>Enter your email and password to access Exora AI.</CardDescription>
-          </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
-              {error && (
-                <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
-                  {error}
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+    <div className="gradient-bg flex min-h-screen w-screen items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-md"
+      >
+        <div className="glass-card p-8">
+          {/* Logo */}
+          <div className="flex flex-col items-center gap-3 mb-8">
+            <Logo variant="full" size="lg" />
+            <p className="text-sm text-warm-500">Welcome back</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                {error}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? 'Signing in...' : 'Sign in'}
-              </Button>
-              <div className="text-center text-sm text-muted-foreground">
-                Don't have an account?{' '}
-                <Link to="/register" className="font-semibold text-primary hover:underline">
-                  Sign up
-                </Link>
-              </div>
-            </CardFooter>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="login-email" className="text-warm-700 dark:text-warm-300 text-sm font-medium">Email</Label>
+              <input
+                id="login-email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full h-10 px-3 rounded-xl bg-white/80 dark:bg-white/5 border border-warm-300/60 dark:border-white/10 text-warm-900 dark:text-cream-50 placeholder:text-warm-400 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="login-password" className="text-warm-700 dark:text-warm-300 text-sm font-medium">Password</Label>
+              <input
+                id="login-password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full h-10 px-3 rounded-xl bg-white/80 dark:bg-white/5 border border-warm-300/60 dark:border-white/10 text-warm-900 dark:text-cream-50 placeholder:text-warm-400 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all"
+              />
+            </div>
+
+            <PressButton
+              type="submit"
+              variant="primary"
+              size="lg"
+              disabled={isSubmitting}
+              className="w-full"
+            >
+              {isSubmitting ? 'Signing in…' : 'Sign in'}
+            </PressButton>
+
+            <p className="text-center text-sm text-warm-500">
+              Don't have an account?{' '}
+              <Link to="/register" className="font-semibold text-indigo-500 hover:text-indigo-600 transition-colors">
+                Sign up
+              </Link>
+            </p>
           </form>
-        </Card>
+        </div>
       </motion.div>
     </div>
   );

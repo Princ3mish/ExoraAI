@@ -18,6 +18,7 @@ const router = Router();
  *
  * POST /api/meetings              — Create a meeting (ADMIN only)
  * GET  /api/meetings              — List meetings (ADMIN: all, USER: own)
+ * GET  /api/meetings/calendar     — Calendar-formatted meetings within a date window (Phase R1)
  * GET  /api/meetings/:id          — Get meeting by ID (ADMIN or participant)
  * PUT  /api/meetings/:id          — Update/reschedule a meeting (ADMIN only)
  * DELETE /api/meetings/:id        — Delete a meeting (ADMIN only)
@@ -34,6 +35,10 @@ router.post(
 
 router.get('/', authenticate, meetingsController.getMeetings);
 
+// Phase R1: Calendar view — must come BEFORE /:id so Express doesn't treat
+// 'calendar' as a meeting ID.
+router.get('/calendar', authenticate, meetingsController.getCalendar);
+
 router.get(
   '/:id',
   authenticate,
@@ -47,6 +52,13 @@ router.put(
   restrictTo(['ADMIN']),
   validateRequest(updateMeetingSchema),
   meetingsController.updateMeeting
+);
+
+router.delete(
+  '/all',
+  authenticate,
+  restrictTo(['ADMIN']),
+  meetingsController.deleteAllMeetings
 );
 
 router.delete(

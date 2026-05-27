@@ -19,6 +19,8 @@ export const createMeetingSchema = {
     endTime: z
       .string()
       .datetime({ message: 'endTime must be a valid ISO 8601 datetime string.' }),
+    durationMins: z.number().min(1).optional(),
+    voiceCallStatus: z.string().optional(),
     participantIds: z
       .array(z.string().uuid({ message: 'Each participantId must be a valid UUID.' }))
       .min(1, { message: 'At least one participant is required.' }),

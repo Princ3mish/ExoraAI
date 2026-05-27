@@ -150,7 +150,7 @@ const _sendMeetingInviteEmails = async (meeting, organizerId) => {
  * Create a meeting (ADMIN only).
  * Runs conflict detection for every participant before persisting anything.
  */
-export const createMeeting = async (organizerId, { title, description, startTime, endTime, participantIds }) => {
+export const createMeeting = async (organizerId, { title, description, durationMins, voiceCallStatus, startTime, endTime, participantIds }) => {
   const start = new Date(startTime);
   const end = new Date(endTime);
 
@@ -174,8 +174,10 @@ export const createMeeting = async (organizerId, { title, description, startTime
     data: {
       title,
       description,
+      durationMins,
       startTime: start,
       endTime: end,
+      voiceCallStatus: voiceCallStatus || 'pending',
       organizerId,
       participants: {
         create: uniqueParticipantIds.map((userId) => ({
@@ -459,4 +461,112 @@ export const deleteMeeting = async (meetingId) => {
   logger.info(`Meeting deleted: ${meetingId}`);
   return { success: true };
 };
+
+/**
+ * Phase R1: Get meetings formatted for a timeline / calendar view.
+ *
+ * Each meeting is shaped as a calendar event:
+ *   { id, title, description, start, end, status, confirmationStatus,
+ *     voiceCallStatus, agendaTopics, organizer, participants }
+ *
+ * Applies the same role-based scoping as getMeetings.
+ *
+ * @param {string} userId
+ * @param {string} role          - 'ADMIN' | 'USER'
+ * @param {object} [window]
+ * @param {string} [window.from] - ISO date string (default: start of today)
+ * @param {string} [window.to]   - ISO date string (default: 30 days from now)
+ * @returns {Promise<object[]>}  - Array of calendar event objects
+ */
+export const getCalendarMeetings = async (userId, role, { from, to } = {}) => {
+  const now = new Date();
+  const windowStart = from
+    ? new Date(from)
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const windowEnd = to
+    ? new Date(to)
+    : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  if (isNaN(windowStart.getTime()) || isNaN(windowEnd.getTime())) {
+    const err = new Error('Invalid date format for "from" or "to". Use ISO 8601.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const baseWhere = {
+    startTime: { gte: windowStart },
+    endTime:   { lte: windowEnd },
+  };
+
+  const where =
+    role === 'ADMIN'
+      ? baseWhere
+      : { ...baseWhere, participants: { some: { userId } } };
+
+  const meetings = await prisma.meeting.findMany({
+    where,
+    orderBy: { startTime: 'asc' },
+    select: {
+      id:                 true,
+      title:              true,
+      description:        true,
+      startTime:          true,
+      endTime:            true,
+      status:             true,
+      confirmationStatus: true,
+      voiceCallStatus:    true,
+      agendaTopics:       true,
+      organizer: {
+        select: { id: true, name: true, email: true },
+      },
+      participants: {
+        select: {
+          userId:      true,
+          status:      true,
+          phoneNumber: true,
+          user:        { select: { name: true, email: true } },
+        },
+      },
+    },
+  });
+
+  // Shape each record into a flat calendar event object
+  return meetings.map((m) => ({
+    id:                 m.id,
+    title:              m.title,
+    description:        m.description || null,
+    startTime:          m.startTime.toISOString(),
+    endTime:            m.endTime.toISOString(),
+    status:             m.status,
+    confirmationStatus: m.confirmationStatus,
+    voiceCallStatus:    m.voiceCallStatus,
+    agendaTopics:       m.agendaTopics,
+    organizer:          m.organizer,
+    participants:       m.participants.map((p) => ({
+      userId:       p.userId,
+      meetingId:    m.id,
+      status:       p.status,
+      phoneNumber:  p.phoneNumber,
+      user: {
+        id:         p.userId,
+        name:       p.user.name,
+        email:      p.user.email,
+      }
+    })),
+  }));
+};
+
+export const deleteAllMeetings = async () => {
+  const deleteResult = await prisma.meeting.deleteMany({});
+  logger.info(`All meetings deleted: ${deleteResult.count} meetings removed.`);
+  
+  await logEvent({
+    type: 'SYSTEM',
+    message: `All meetings deleted (${deleteResult.count} total)`,
+    status: 'success',
+  });
+
+  return { success: true, count: deleteResult.count };
+};
+
 

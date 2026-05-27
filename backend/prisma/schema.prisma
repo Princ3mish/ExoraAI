@@ -1,4 +1,4 @@
-// Phase 3: Expanded schema with auth (password), ParticipantStatus workflow, and original Phase 2 relational layout
+// Phase R1: Extended schema — new Meeting/Participant fields + BotSession + VoiceCallLog
 generator client {
   provider = "prisma-client-js"
 }
@@ -29,44 +29,72 @@ model User {
   id                   String         @id @default(uuid())
   email                String         @unique
   name                 String?
+  phoneNumber          String?
   password             String
   role                 Role           @default(USER)
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
-  
+
+  // Phase S1 — Telegram account linking
+  telegramId           String?        @unique
+  telegramLinked       Boolean        @default(false)
+  telegramLinkToken    String?        @unique
+  telegramLinkExpiry   DateTime?
+
+  // Phase S1 — Billing / credits
+  credits              Int            @default(50)
+  plan                 String         @default("free")
+
   organizedMeetings    Meeting[]      @relation("MeetingOrganizer")
   participations       Participant[]
   availabilities       Availability[]
   events               AIEvent[]      @relation("UserEvents")
+  botSessions          BotSession[]
 }
 
 model Meeting {
-  id           String         @id @default(uuid())
-  title        String
-  description  String?
-  startTime    DateTime
-  endTime      DateTime
-  status       MeetingStatus  @default(PENDING)
-  organizerId  String
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id                 String        @id @default(uuid())
+  title              String
+  description        String?
+  durationMins       Int?
+  startTime          DateTime
+  endTime            DateTime
+  status             MeetingStatus @default(PENDING)
+  organizerId        String
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
-  organizer    User           @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
-  participants Participant[]
-  aiResults    AIResult[]
-  events       AIEvent[]      @relation("MeetingEvents")
+  // Phase R1 — agent orchestration fields
+  agendaTopics       String[]
+  voiceCallStatus    String        @default("pending")
+  botThreadId        String?
+  confirmationStatus String        @default("unconfirmed")
+
+  organizer          User          @relation("MeetingOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  participants       Participant[]
+  aiResults          AIResult[]
+  events             AIEvent[]     @relation("MeetingEvents")
+  botSessions        BotSession[]
+  voiceCallLogs      VoiceCallLog[]
 
   @@index([organizerId])
+  @@index([voiceCallStatus])
+  @@index([startTime])
 }
 
 model Participant {
-  userId    String
-  meetingId String
-  status    ParticipantStatus @default(PENDING)
-  joinedAt  DateTime          @default(now())
+  userId        String
+  meetingId     String
+  status        ParticipantStatus @default(PENDING)
+  joinedAt      DateTime          @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  // Phase R1 — voice agent fields
+  phoneNumber   String?
+  voiceResponse String?
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting       Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  voiceCallLogs VoiceCallLog[]
 
   @@id([meetingId, userId])
   @@index([userId])
@@ -77,7 +105,7 @@ model Availability {
   userId     String
   startTime  DateTime
   endTime    DateTime
-  
+
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -111,4 +139,45 @@ model AIEvent {
   @@index([meetingId])
   @@index([userId])
   @@index([createdAt])
+}
+
+// Phase R1 — Telegram bot conversation session
+model BotSession {
+  id         String   @id @default(uuid())
+  telegramId String
+  intent     String?
+  slots      Json     @default("{}")
+  status     String   @default("active")
+  meetingId  String?
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  meeting    Meeting? @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([telegramId])
+  @@index([meetingId])
+  @@index([userId])
+}
+
+// Phase R1 — Outbound voice call log (Twilio or simulated)
+// References the composite-PK Participant via two FK columns.
+model VoiceCallLog {
+  id                  String   @id @default(uuid())
+  participantUserId   String
+  participantMeetingId String
+  meetingId           String
+  callSid             String?
+  transcript          String?
+  outcome             String   @default("pending")
+  agendaExtracted     String[]
+  duration            Int?
+  calledAt            DateTime @default(now())
+
+  participant         Participant @relation(fields: [participantMeetingId, participantUserId], references: [meetingId, userId], onDelete: Cascade)
+  meeting             Meeting     @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([participantUserId])
+  @@index([participantMeetingId])
 }
