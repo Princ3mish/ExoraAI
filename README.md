@@ -93,7 +93,6 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
-### 7. Open http://localhost:5173
 
 ## 📁 Project Structure
 
