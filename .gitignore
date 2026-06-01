@@ -1,14 +1,8 @@
+# ── Dependencies ──────────────────────────────────────────────
 node_modules/
-**/node_modules/
+
+# ── Environment / Secrets ─────────────────────────────────────
 .env
-**/.env
-.env.local
-**/.env.local
-.DS_Store
-Thumbs.db
-.vscode/
-dist/
-build/
-logs/
-*.log
-combined.log
+.env.*
+!.env.example
+!.env.test.example

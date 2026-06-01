@@ -19,8 +19,8 @@ describe('Auth API', () => {
   it('should register a new user', async () => {
     const res = await request(app).post('/api/auth/register').send(testUser);
     expect(res.statusCode).toEqual(201);
-    expect(res.body.data.email).toEqual(testUser.email);
-    expect(res.body.data).not.toHaveProperty('password');
+    expect(res.body.data.user.email).toEqual(testUser.email);
+    expect(res.body.data.user).not.toHaveProperty('password');
   });
 
   it('should not register duplicate email', async () => {

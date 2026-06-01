@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PressButton } from '@/components/ui/PressButton';
 import { Logo } from '@/components/ui/Logo';
+import { useAuth } from '@/context/AuthContext';
 import {
   MessageSquare,
   Phone,
@@ -575,7 +576,13 @@ const faqs = [
   },
 ];
 
-function PricingSection() {
+function PricingSection({
+  starterHref,
+  proHref,
+}: {
+  starterHref: string;
+  proHref: string;
+}) {
   return (
     <section id="pricing" className="py-24 bg-white/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -617,7 +624,7 @@ function PricingSection() {
             <ul className="space-y-2.5 flex-1">
               {starterFeatures.map((f) => <FeatureRow key={f.text} feature={f} />)}
             </ul>
-            <PressButton href="/register" variant="secondary" size="md" className="w-full">
+            <PressButton href={starterHref} variant="secondary" size="md" className="w-full">
               Get started free
             </PressButton>
           </motion.div>
@@ -654,8 +661,8 @@ function PricingSection() {
               <ul className="space-y-2.5 flex-1">
                 {proFeatures.map((f) => <FeatureRow key={f.text} feature={f} />)}
               </ul>
-              <PressButton href="/register" variant="primary" size="md" className="w-full">
-                Start Pro trial
+              <PressButton href={proHref} variant="primary" size="md" className="w-full">
+                {proHref === '/dashboard/billing' ? 'Buy credits' : 'Start Pro trial'}
               </PressButton>
             </motion.div>
           </motion.div>
@@ -774,6 +781,12 @@ function Footer() {
 // ── Landing page ───────────────────────────────────────────────────────────────
 
 export default function Landing() {
+  const { user } = useAuth();
+
+  // Auth-aware CTA hrefs — send logged-in users to dashboard, guests to register
+  const starterHref = user ? '/dashboard' : '/register';
+  const proHref = user ? '/dashboard/billing' : '/register';
+
   return (
     <div className="min-h-screen text-warm-900">
       <Navbar />
@@ -781,7 +794,7 @@ export default function Landing() {
       <StatsSection />
       <FeaturesSection />
       <HowItWorksSection />
-      <PricingSection />
+      <PricingSection starterHref={starterHref} proHref={proHref} />
       <CTASection />
       <Footer />
     </div>

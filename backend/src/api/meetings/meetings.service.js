@@ -208,7 +208,31 @@ export const createMeeting = async (organizerId, { title, description, durationM
   // Phase 6: Fire-and-forget email — does not block API response
   _sendMeetingInviteEmails(meeting, organizerId).catch(() => {});
 
+  // Phase S2: Fire-and-forget UserContact creation for organizer ↔ each participant
+  _createUserContacts(organizerId, uniqueParticipantIds).catch(() => {});
+
   return meeting;
+};
+
+/**
+ * Phase S2: After a meeting is created, ensure the organizer and all participants
+ * are linked as UserContacts (bidirectional: organizer → participant).
+ * Fire-and-forget — errors are caught and ignored.
+ */
+const _createUserContacts = async (organizerId, participantIds) => {
+  try {
+    for (const contactId of participantIds) {
+      if (contactId === organizerId) continue;
+      // upsert so duplicates are silently ignored
+      await prisma.userContact.upsert({
+        where: { ownerId_contactId: { ownerId: organizerId, contactId } },
+        update: {},
+        create: { ownerId: organizerId, contactId },
+      });
+    }
+  } catch (err) {
+    logger.error('[_createUserContacts] Failed', { error: err.message, organizerId });
+  }
 };
 
 /**
@@ -227,17 +251,17 @@ export const getMeetings = async (userId, role) => {
     });
   }
 
-  // USER: only return meetings where they are a participant
+  // USER: return meetings where they are organizer OR participant
   return prisma.meeting.findMany({
     where: {
-      participants: { some: { userId } },
+      OR: [
+        { organizerId: userId },
+        { participants: { some: { userId } } },
+      ],
     },
     include: {
       organizer: { select: { id: true, name: true, email: true } },
-      participants: {
-        where: { userId },
-        select: { status: true },
-      },
+      participants: { select: { userId: true, status: true } },
     },
     orderBy: { startTime: 'asc' },
   });
@@ -351,7 +375,7 @@ export const getMeetingById = async (meetingId, userId, role) => {
  * Performs conflict re-checks for the updated time or participants.
  * Resets participant status to PENDING if times or participants changed.
  */
-export const updateMeeting = async (meetingId, payload) => {
+export const updateMeeting = async (meetingId, payload, userId) => {
   const { title, description, startTime, endTime, participantIds } = payload;
   
   const existingMeeting = await prisma.meeting.findUnique({
@@ -362,6 +386,13 @@ export const updateMeeting = async (meetingId, payload) => {
   if (!existingMeeting) {
     const err = new Error('Meeting not found.');
     err.statusCode = 404;
+    throw err;
+  }
+
+  // Ownership check: only the organizer (or ADMIN — handled in routes) can update
+  if (userId && existingMeeting.organizerId !== userId) {
+    const err = new Error('You do not have permission to update this meeting.');
+    err.statusCode = 403;
     throw err;
   }
 
@@ -447,13 +478,21 @@ export const updateMeeting = async (meetingId, payload) => {
 };
 
 /**
- * Delete/cancel a meeting (ADMIN only).
+ * Delete/cancel a meeting.
+ * Ownership check: only the organizer can delete (ADMIN bypass handled in routes).
  */
-export const deleteMeeting = async (meetingId) => {
+export const deleteMeeting = async (meetingId, userId) => {
   const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
   if (!meeting) {
     const err = new Error('Meeting not found.');
     err.statusCode = 404;
+    throw err;
+  }
+
+  // Ownership check
+  if (userId && meeting.organizerId !== userId) {
+    const err = new Error('You do not have permission to delete this meeting.');
+    err.statusCode = 403;
     throw err;
   }
 
@@ -501,7 +540,13 @@ export const getCalendarMeetings = async (userId, role, { from, to } = {}) => {
   const where =
     role === 'ADMIN'
       ? baseWhere
-      : { ...baseWhere, participants: { some: { userId } } };
+      : {
+          ...baseWhere,
+          OR: [
+            { organizerId: userId },
+            { participants: { some: { userId } } },
+          ],
+        };
 
   const meetings = await prisma.meeting.findMany({
     where,

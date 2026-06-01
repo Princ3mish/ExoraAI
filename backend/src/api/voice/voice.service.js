@@ -529,10 +529,17 @@ export const handleWebhook = async (body) => {
  * and participant name — used by the frontend ActivityPanel.
  *
  * @param {number} [limit=20]
+ * @param {string} [userId]   - scope to meetings organised by this user (non-admin)
+ * @param {string} [role]     - 'ADMIN' bypasses scoping
  * @returns {Promise<object[]>}
  */
-export const getCallLogs = async (limit = 20) => {
+export const getCallLogs = async (limit = 20, userId, role) => {
+  const where = (role !== 'ADMIN' && userId)
+    ? { meeting: { organizerId: userId } }
+    : {};
+
   const logs = await prisma.voiceCallLog.findMany({
+    where,
     take: limit,
     orderBy: { calledAt: 'desc' },
     include: {

@@ -143,10 +143,13 @@ export const getTelegramToken = async (userId) => {
   });
 
   const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'meetingagent_Exora_bot';
-  const botUrl = `https://t.me/${botUsername}?start=${token}`;
+  // botUrl     → works on mobile & desktop (if Telegram app is installed)
+  // botUrlWeb  → works in any browser via Telegram Web (no app needed)
+  const botUrl    = `https://t.me/${botUsername}?start=${token}`;
+  const botUrlWeb = `https://web.telegram.org/k/#@${botUsername}`;
 
   logger.info('[Auth] Telegram link token generated', { userId });
-  return { token, botUrl, expiresIn: '15 minutes' };
+  return { token, botUrl, botUrlWeb, expiresIn: '15 minutes' };
 };
 
 // ─── Step 9: Telegram link status ────────────────────────────────────────────

@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Landing from './pages/Landing';
+import OnboardingPage from './pages/OnboardingPage';
 
 function App() {
   return (
@@ -19,9 +20,10 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Protected dashboard — requires auth */}
+          {/* Protected routes — require auth */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard/*" element={<Dashboard />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
           </Route>
 
           {/* Catch-all → landing */}
@@ -34,3 +36,4 @@ function App() {
 }
 
 export default App;
+

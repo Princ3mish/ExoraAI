@@ -16,6 +16,7 @@ api.interceptors.request.use((config) => {
 });
 
 // On 401: clear auth state and redirect to /login
+// On 402: dispatch credits-exhausted event for CreditsExhaustedModal
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -26,6 +27,11 @@ api.interceptors.response.use(
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
+    }
+    if (error.response?.status === 402) {
+      window.dispatchEvent(new CustomEvent('credits-exhausted', {
+        detail: { message: error.response.data?.message ?? 'Insufficient credits.' },
+      }));
     }
     return Promise.reject(error);
   },

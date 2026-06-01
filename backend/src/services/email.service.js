@@ -6,8 +6,9 @@ import { logEvent } from '../utils/logEvent.js';
  * Email Service — Resend SDK.
  * All sends are fire-and-forget; failures NEVER propagate to callers.
  *
- * Startup check: if RESEND_API_KEY is missing, log a warning once and skip
- * all sends gracefully (no crash).
+ * Configure via .env:
+ *   RESEND_API_KEY        — your Resend API key
+ *   RESEND_FROM_ADDRESS   — verified domain sender, e.g. "Exora <exora@princemishra.me>"
  */
 
 if (!process.env.RESEND_API_KEY) {
@@ -18,7 +19,8 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-const FROM_ADDRESS = 'Exora AI <onboarding@resend.dev>';
+const FROM_ADDRESS =
+  process.env.RESEND_FROM_ADDRESS || 'Exora <exora@princemishra.me>';
 
 // ─── Shared HTML layout helpers ───────────────────────────────────────────────
 
@@ -33,9 +35,21 @@ const htmlWrapper = (bodyContent) => `
         <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
           <!-- Header -->
           <tr>
-            <td style="background-color:#6366F1;padding:20px 40px;height:60px;text-align:center;">
-              <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;line-height:1;">Exora AI</p>
-              <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,0.8);line-height:1;">Your AI-Powered Meeting Assistant</p>
+            <td style="background-color:#6366F1;padding:20px 40px;text-align:center;">
+              <table align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:10px;">
+                    <!-- Inline logo icon representing Exora AI -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 48 46" style="display:block;width:32px;height:32px;">
+                      <path fill="#ffffff" d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"/>
+                    </svg>
+                  </td>
+                  <td style="vertical-align:middle;text-align:left;">
+                    <p style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;line-height:1.1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Exora AI</p>
+                    <p style="margin:2px 0 0;font-size:11px;color:rgba(255,255,255,0.85);letter-spacing:0.2px;line-height:1.1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;text-transform:uppercase;font-weight:600;">Your AI Meeting Assistant</p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <!-- Body -->
@@ -97,13 +111,18 @@ async function _send({ to, subject, html, text, meetingId, userId }) {
   }
 
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: FROM_ADDRESS,
       to,
       subject,
       html,
       ...(text ? { text } : {}),
     });
+
+    // Surface Resend validation errors returned in the response body (non-throwing)
+    if (result.error) {
+      throw new Error(`Resend API error: ${result.error.message} (${result.error.name})`);
+    }
 
     await logEvent({
       type: 'AI_ACTION',
@@ -129,6 +148,7 @@ async function _send({ to, subject, html, text, meetingId, userId }) {
     // Never rethrow — caller must not crash on email failure
   }
 }
+
 
 // ─── Generic helpers (kept for backward compatibility with existing callers) ──
 

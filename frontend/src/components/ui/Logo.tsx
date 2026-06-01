@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import logo from '@/assets/logo.png';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -33,6 +34,9 @@ const textSizeMap: Record<NonNullable<LogoProps['size']>, string> = {
  * - variant="full"  → logo image + "Exora AI" text (default)
  * - variant="icon"  → logo image only
  *
+ * Always wrapped in a <Link to="/"> so clicking the logo navigates
+ * to the landing page from anywhere in the app.
+ *
  * Falls back to an indigo gradient placeholder if the image fails to load.
  */
 export function Logo({ variant = 'full', size = 'md', className = '' }: LogoProps) {
@@ -65,19 +69,27 @@ export function Logo({ variant = 'full', size = 'md', className = '' }: LogoProp
 
   if (variant === 'icon') {
     return (
-      <div className={`inline-flex items-center ${className}`} aria-label="Exora AI">
+      <Link
+        to="/"
+        className={`inline-flex items-center ${className}`}
+        aria-label="Exora AI — go to home"
+      >
         {logoImage}
-      </div>
+      </Link>
     );
   }
 
   return (
-    <div className={`inline-flex items-center gap-2 ${className}`}>
+    <Link
+      to="/"
+      className={`inline-flex items-center gap-2 ${className}`}
+      aria-label="Exora AI — go to home"
+    >
       {logoImage}
       <span className={`font-bold text-gradient tracking-tight ${textSize}`}>
         Exora AI
       </span>
-    </div>
+    </Link>
   );
 }
 

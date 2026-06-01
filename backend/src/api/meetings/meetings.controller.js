@@ -38,13 +38,15 @@ export const getMeetingById = asyncHandler(async (req, res) => {
 
 export const updateMeeting = asyncHandler(async (req, res) => {
   const { id: meetingId } = req.params;
-  const meeting = await meetingsService.updateMeeting(meetingId, req.body);
+  const { userId } = req.user;
+  const meeting = await meetingsService.updateMeeting(meetingId, req.body, userId);
   res.status(200).json({ status: 200, message: 'Meeting updated successfully.', data: meeting });
 });
 
 export const deleteMeeting = asyncHandler(async (req, res) => {
   const { id: meetingId } = req.params;
-  const result = await meetingsService.deleteMeeting(meetingId);
+  const { userId } = req.user;
+  const result = await meetingsService.deleteMeeting(meetingId, userId);
   res.status(200).json({ status: 200, message: 'Meeting deleted successfully.', data: result });
 });
 

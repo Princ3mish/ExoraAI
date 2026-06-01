@@ -1,7 +1,26 @@
-.env
-.env.local
+# ── Dependencies ──────────────────────────────────────────────
 node_modules/
+
+# ── Environment / Secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.test.example
+
+# ── Build output ──────────────────────────────────────────────
+dist/
+
+# ── Prisma generated ──────────────────────────────────────────
+# (keep schema.prisma, ignore generated client if needed)
+
+# ── Logs ──────────────────────────────────────────────────────
 logs/
 *.log
-combined.log
-prisma/migrations/dev/
+npm-debug.log*
+
+# ── OS / Editor ───────────────────────────────────────────────
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.sw?

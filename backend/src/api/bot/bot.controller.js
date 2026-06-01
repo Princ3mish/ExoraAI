@@ -17,7 +17,8 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
  * Always returns 200 with an array — never 404.
  */
 export const getSessions = asyncHandler(async (req, res) => {
-  const sessions = await botService.getSessions();
+  const { userId } = req.user;
+  const sessions = await botService.getSessions(userId);
   res.status(200).json({ status: 200, data: sessions });
 });
 

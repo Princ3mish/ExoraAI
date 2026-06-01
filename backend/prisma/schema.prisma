@@ -50,6 +50,13 @@ model User {
   availabilities       Availability[]
   events               AIEvent[]      @relation("UserEvents")
   botSessions          BotSession[]
+
+  // Phase S2 — UserContact: meetings I organized link me to their participants
+  contactsOwned        UserContact[]  @relation("ContactOwner")
+  contactEntries       UserContact[]  @relation("ContactUser")
+
+  // Phase S4 — Credit transaction audit trail
+  transactions         CreditTransaction[]
 }
 
 model Meeting {
@@ -180,4 +187,34 @@ model VoiceCallLog {
   @@index([meetingId])
   @@index([participantUserId])
   @@index([participantMeetingId])
+}
+
+// Phase S2 — UserContact: per-user address book built from meeting organizer↔participant links
+model UserContact {
+  id          String   @id @default(uuid())
+  ownerId     String
+  contactId   String
+  createdAt   DateTime @default(now())
+
+  owner       User     @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  contact     User     @relation("ContactUser",  fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, contactId])
+  @@index([ownerId])
+  @@index([contactId])
+}
+
+// Phase S4 — Credit purchase + deduction audit trail
+model CreditTransaction {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  amount          Int
+  type            String   // 'purchase' | 'deduction'
+  reason          String   // 'credit_purchase' | 'meeting_created' | 'voice_call_initiated'
+  stripeSessionId String?
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }

@@ -23,6 +23,12 @@ import voiceRoutes from './api/voice/voice.routes.js';
 import settingsRoutes from './api/settings/settings.routes.js';
 import analyticsRoutes from './api/analytics/analytics.routes.js';
 
+// Phase S2: Contacts API
+import contactsRoutes from './api/contacts/contacts.routes.js';
+
+// Phase S4: Billing + Stripe
+import billingRoutes from './api/billing/billing.routes.js';
+
 // Phase R2: Grammy Telegram webhook
 import { botWebhook } from './bot/bot.js';
 
@@ -34,6 +40,10 @@ const prisma = new PrismaClient();
 
 // Phase 2: Enable CORS correctly for the frontend mapping
 app.use(cors());
+
+// Phase S4: Billing webhook — must be mounted BEFORE global express.json()
+// so the /webhook path sees the raw Buffer (Stripe signature verification requires it).
+app.use('/api/billing', billingRoutes);
 
 // Phase R2: Grammy Telegram webhook.
 // express.json() is added inline so Grammy receives a pre-parsed req.body.
@@ -80,6 +90,9 @@ app.use('/api/events', eventsRoutes);
 // Phase R1: Bot sessions (REST) + Voice calls
 app.use('/api/bot', botApiRoutes);
 app.use('/api/voice', voiceRoutes);
+
+// Phase S2: Contacts
+app.use('/api/contacts', contactsRoutes);
 
 // ── Health check ────────────────────────────────────────────────────────────
 

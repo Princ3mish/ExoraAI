@@ -76,7 +76,7 @@ describe('AI Integration', () => {
     const adminReg = await request(app).post('/api/auth/register').send({
       email: 'ai_admin@example.com', password: 'password123', name: 'AI Admin', role: 'ADMIN',
     });
-    adminId = adminReg.body.data.id;
+    adminId = adminReg.body.data.user.id;
     const adminLogin = await request(app).post('/api/auth/login').send({
       email: 'ai_admin@example.com', password: 'password123',
     });
@@ -86,7 +86,7 @@ describe('AI Integration', () => {
     const userReg = await request(app).post('/api/auth/register').send({
       email: 'ai_user@example.com', password: 'password123', name: 'AI User',
     });
-    userId = userReg.body.data.id;
+    userId = userReg.body.data.user.id;
     const userLogin = await request(app).post('/api/auth/login').send({
       email: 'ai_user@example.com', password: 'password123',
     });

@@ -32,10 +32,7 @@ export const getSummary = async (userId, role, { from, to }) => {
   };
 
   if (role !== 'ADMIN') {
-    meetingFilter.OR = [
-      { organizerId: userId },
-      { participants: { some: { userId } } },
-    ];
+    meetingFilter.organizerId = userId;
   }
 
   const meetings = await prisma.meeting.findMany({
@@ -70,10 +67,7 @@ export const getSummary = async (userId, role, { from, to }) => {
   };
 
   if (role !== 'ADMIN') {
-    lastWeekFilter.OR = [
-      { organizerId: userId },
-      { participants: { some: { userId } } },
-    ];
+    lastWeekFilter.organizerId = userId;
   }
 
   const lastWeekMeetingsCount = await prisma.meeting.count({ where: lastWeekFilter });

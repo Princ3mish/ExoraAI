@@ -53,13 +53,16 @@ export const createSession = async ({ telegramId, intent, slots, meetingId }) =>
 };
 
 /**
- * Fetch the 10 most recent BotSession records.
- * Used by the ActivityPanel — always returns an array, never throws.
+ * Fetch the 10 most recent BotSession records for the authenticated user.
+ * If userId is provided, filter by it; otherwise return all (should always have userId now).
  *
+ * @param {string} [userId] - filter sessions by this user's ID
  * @returns {Promise<object[]>}
  */
-export const getSessions = async () => {
+export const getSessions = async (userId) => {
+  const where = userId ? { userId } : {};
   const sessions = await prisma.botSession.findMany({
+    where,
     take: 10,
     orderBy: { createdAt: 'desc' },
     select: {

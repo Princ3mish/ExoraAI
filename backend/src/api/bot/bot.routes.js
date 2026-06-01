@@ -16,7 +16,7 @@ const router = Router();
  * POST + PATCH require a valid JWT from the bot backend.
  */
 
-router.get('/session', botController.getSessions);
+router.get('/session', authenticate, botController.getSessions);
 
 router.post('/session', authenticate, botController.createSession);
 

@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import api from '../lib/api';
 
+interface UserUsage {
+  meetingsThisMonth: number;
+  meetingsLimit: number | null;
+  contactsTotal: number;
+  contactsLimit: number | null;
+  voiceCallsThisMonth: number;
+  voiceCallsLimit: number | null;
+}
+
 interface User {
   id: string;
   email: string;
@@ -10,6 +19,7 @@ interface User {
   telegramLinked?: boolean;
   credits?: number;
   plan?: string;
+  usage?: UserUsage;
 }
 
 interface AuthContextType {
@@ -18,6 +28,7 @@ interface AuthContextType {
   login: (token: string, userData: User) => void;
   logout: () => void;
   updateUser: (updatedFields: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -67,8 +78,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser((prev) => (prev ? { ...prev, ...updatedFields } : null));
   };
 
+  // Phase S4 — re-fetch user profile to sync credits after Stripe purchase
+  const refreshUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      setUser(res.data.data.user);
+    } catch (error) {
+      console.error('Failed to refresh user profile:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

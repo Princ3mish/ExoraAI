@@ -3,6 +3,7 @@ import * as meetingsController from './meetings.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 import { restrictTo } from '../../middleware/rbac.js';
 import { validateRequest } from '../../middleware/validateRequest.js';
+import { requireCredits } from '../../middleware/credits.js';
 import {
   createMeetingSchema,
   respondToInviteSchema,
@@ -14,21 +15,21 @@ import {
 const router = Router();
 
 /**
- * Phase 3: Meetings Routes
+ * Phase 3 + S2: Meetings Routes
  *
- * POST /api/meetings              — Create a meeting (ADMIN only)
- * GET  /api/meetings              — List meetings (ADMIN: all, USER: own)
- * GET  /api/meetings/calendar     — Calendar-formatted meetings within a date window (Phase R1)
- * GET  /api/meetings/:id          — Get meeting by ID (ADMIN or participant)
- * PUT  /api/meetings/:id          — Update/reschedule a meeting (ADMIN only)
- * DELETE /api/meetings/:id        — Delete a meeting (ADMIN only)
+ * POST /api/meetings              — Create a meeting (all authenticated users, 1 credit)
+ * GET  /api/meetings              — List meetings (ADMIN: all, USER: own + organised)
+ * GET  /api/meetings/calendar     — Calendar-formatted meetings within a date window
+ * GET  /api/meetings/:id          — Get meeting by ID (ADMIN or participant/organizer)
+ * PUT  /api/meetings/:id          — Update/reschedule a meeting (organizer or ADMIN)
+ * DELETE /api/meetings/:id        — Delete a meeting (organizer or ADMIN)
  * PUT  /api/meetings/:id/respond  — Respond to an invitation (authenticated users)
  */
 
 router.post(
   '/',
   authenticate,
-  restrictTo(['ADMIN']),
+  requireCredits(1),
   validateRequest(createMeetingSchema),
   meetingsController.createMeeting
 );

@@ -16,7 +16,7 @@ describe('Meetings API', () => {
     const adminRes = await request(app).post('/api/auth/register').send({
       email: 'm_admin@example.com', password: 'password123', name: 'Admin', role: 'ADMIN'
     });
-    adminId = adminRes.body.data.id;
+    adminId = adminRes.body.data.user.id;
     const adminLogin = await request(app).post('/api/auth/login').send({ email: 'm_admin@example.com', password: 'password123'});
     adminToken = adminLogin.body.data.token;
 
@@ -24,7 +24,7 @@ describe('Meetings API', () => {
     const userRes = await request(app).post('/api/auth/register').send({
       email: 'm_user1@example.com', password: 'password123', name: 'User 1'
     });
-    userId = userRes.body.data.id;
+    userId = userRes.body.data.user.id;
     const userLogin = await request(app).post('/api/auth/login').send({ email: 'm_user1@example.com', password: 'password123'});
     userToken = userLogin.body.data.token;
 
@@ -32,7 +32,7 @@ describe('Meetings API', () => {
     const user2Res = await request(app).post('/api/auth/register').send({
       email: 'm_user2@example.com', password: 'password123', name: 'User 2'
     });
-    user2Id = user2Res.body.data.id;
+    user2Id = user2Res.body.data.user.id;
     const user2Login = await request(app).post('/api/auth/login').send({ email: 'm_user2@example.com', password: 'password123'});
     user2Token = user2Login.body.data.token;
   });

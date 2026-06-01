@@ -18,9 +18,10 @@ import {
   Settings,
   BarChart2,
   CheckCircle2,
-  AlertTriangle,
   Loader2,
   Link,
+  Zap,
+  CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -34,8 +35,11 @@ import MeetingsPage from '@/pages/MeetingsPage';
 import ContactsPage from '@/pages/ContactsPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import SettingsPage from '@/pages/SettingsPage';
+import BillingPage from '@/pages/BillingPage';
 import { useAuth } from '@/context/AuthContext';
 import { Logo } from '@/components/ui/Logo';
+import { CreditsExhaustedModal } from '@/components/CreditsExhaustedModal';
+import { OnboardingBanner } from '@/components/OnboardingBanner';
 
 
 // ── Theme toggle ──────────────────────────────────────────────────────────────
@@ -128,12 +132,64 @@ function NavItem({
   );
 }
 
+// ── Credits Widget ────────────────────────────────────────────────────────────
+
+function CreditsWidget({ credits, plan, usage }: {
+  credits?: number;
+  plan?: string;
+  usage?: {
+    meetingsThisMonth: number;
+    meetingsLimit: number | null;
+  };
+}) {
+  const isPro = plan === 'pro';
+  const creditsNum = credits ?? 0;
+  // Show progress bar up to 50 credits (default starting amount)
+  const maxCredits = 50;
+  const pct = Math.min((creditsNum / maxCredits) * 100, 100);
+  const barColor = creditsNum <= 5 ? '#ef4444' : creditsNum <= 15 ? '#f59e0b' : '#6366f1';
+
+  return (
+    <div className="rounded-xl border border-white/20 dark:border-white/10 bg-white/30 dark:bg-white/5 p-3 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-warm-700 dark:text-warm-300 flex items-center gap-1.5">
+          <Zap className="h-3 w-3 text-indigo-500" />
+          Credits
+        </span>
+        <span className="text-xs font-semibold" style={{ color: barColor }}>
+          {isPro ? '∞' : creditsNum}
+        </span>
+      </div>
+      {!isPro && (
+        <div className="w-full h-1.5 rounded-full bg-warm-200/60 dark:bg-white/10 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${pct}%`, background: barColor }}
+          />
+        </div>
+      )}
+      <div className="flex items-center justify-between text-[10px] text-warm-500">
+        <span>{isPro ? 'Pro Plan' : `${plan ?? 'free'} plan`}</span>
+        {!isPro && usage && (
+          <span>{usage.meetingsThisMonth}/{usage.meetingsLimit ?? '∞'} mtgs this mo.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
   userName: string;
   userEmail: string;
   telegramLinked?: boolean;
+  credits?: number;
+  plan?: string;
+  usage?: {
+    meetingsThisMonth: number;
+    meetingsLimit: number | null;
+  };
   onLogout: () => void;
   onTelegramLinked: () => void;
   theme: 'dark' | 'light';
@@ -141,7 +197,7 @@ interface SidebarProps {
   onNavClick?: () => void;
 }
 
-function Sidebar({ userName, userEmail, telegramLinked, onLogout, onTelegramLinked, theme, onThemeToggle, onNavClick }: SidebarProps) {
+function Sidebar({ userName, userEmail, telegramLinked, credits, plan, usage, onLogout, onTelegramLinked, theme, onThemeToggle, onNavClick }: SidebarProps) {
   const initials = userName
     ? userName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : userEmail.slice(0, 2).toUpperCase();
@@ -150,6 +206,7 @@ function Sidebar({ userName, userEmail, telegramLinked, onLogout, onTelegramLink
 
   const [connectLoading, setConnectLoading] = useState(false);
   const [connectSuccess, setConnectSuccess] = useState(false);
+  const [webFallbackUrl, setWebFallbackUrl] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = () => {
@@ -166,9 +223,11 @@ function Sidebar({ userName, userEmail, telegramLinked, onLogout, onTelegramLink
     if (connectLoading || telegramLinked || connectSuccess) return;
     setConnectLoading(true);
     try {
-      const res = await api.get<{ data: { token: string; botUrl: string; expiresIn: number } }>('/auth/telegram-token');
-      const { botUrl } = res.data.data;
+      const res = await api.get<{ data: { token: string; botUrl: string; botUrlWeb: string; expiresIn: number } }>('/auth/telegram-token');
+      const { botUrl, botUrlWeb } = res.data.data;
       window.open(botUrl, '_blank');
+      // Store web fallback so user can click it if tg:// handler is missing
+      setWebFallbackUrl(botUrlWeb);
 
       // Start polling for link completion every 3 s
       pollRef.current = setInterval(async () => {
@@ -178,6 +237,7 @@ function Sidebar({ userName, userEmail, telegramLinked, onLogout, onTelegramLink
             stopPolling();
             setConnectLoading(false);
             setConnectSuccess(true);
+            setWebFallbackUrl(null);
             onTelegramLinked();
           }
         } catch {
@@ -223,6 +283,12 @@ function Sidebar({ userName, userEmail, telegramLinked, onLogout, onTelegramLink
           path="/dashboard/analytics"
           onClick={onNavClick}
         />
+        <NavItem
+          icon={<CreditCard className="h-4 w-4" />}
+          label="Billing"
+          path="/dashboard/billing"
+          onClick={onNavClick}
+        />
       </nav>
 
       <Separator className="bg-white/20 dark:bg-white/10" />
@@ -250,25 +316,42 @@ function Sidebar({ userName, userEmail, telegramLinked, onLogout, onTelegramLink
           <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Telegram connected</span>
         </div>
       ) : (
-        <button
-          id="connect-telegram-btn"
-          onClick={handleConnect}
-          disabled={connectLoading}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed w-full"
-        >
-          {connectLoading ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-              <span>Waiting for link…</span>
-            </>
-          ) : (
-            <>
-              <Link className="h-3.5 w-3.5 shrink-0" />
-              <span>Connect Telegram →</span>
-            </>
+        <div className="flex flex-col gap-1">
+          <button
+            id="connect-telegram-btn"
+            onClick={handleConnect}
+            disabled={connectLoading}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed w-full"
+          >
+            {connectLoading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                <span>Waiting for link…</span>
+              </>
+            ) : (
+              <>
+                <Link className="h-3.5 w-3.5 shrink-0" />
+                <span>Connect Telegram →</span>
+              </>
+            )}
+          </button>
+          {/* Escape hatch: if tg:// handler not registered, open Telegram Web instead */}
+          {connectLoading && webFallbackUrl && (
+            <a
+              id="telegram-web-fallback"
+              href={webFallbackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-center text-warm-500 hover:text-indigo-500 underline underline-offset-2 transition-colors px-1"
+            >
+              App not opening? Use Telegram Web ↗
+            </a>
           )}
-        </button>
+        </div>
       )}
+
+      {/* Credits Widget */}
+      <CreditsWidget credits={credits} plan={plan} usage={usage} />
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -359,78 +442,59 @@ function getGreeting() {
   return 'evening';
 }
 
-// ── Onboarding banner ─────────────────────────────────────────────────────────
-
-function TelegramBanner({ onConnect, onDismiss }: { onConnect: () => void; onDismiss: () => void }) {
-  return (
-    <motion.div
-      id="telegram-onboarding-banner"
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.25 }}
-      className="mx-5 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 shrink-0"
-    >
-      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-      <p className="text-xs flex-1">
-        <span className="font-semibold">Telegram not connected.</span>{' '}
-        Link your account so the bot can schedule meetings for you.
-      </p>
-      <button
-        id="banner-connect-btn"
-        onClick={onConnect}
-        className="text-xs font-semibold underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200 transition-colors shrink-0"
-      >
-        Connect →
-      </button>
-      <button
-        id="banner-dismiss-btn"
-        onClick={onDismiss}
-        className="text-xs text-amber-500 hover:text-amber-700 dark:hover:text-amber-200 transition-colors shrink-0 ml-1"
-        title="Dismiss"
-      >
-        ✕
-      </button>
-    </motion.div>
-  );
-}
-
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const { user, logout, updateUser } = useAuth();
   const { theme, toggle } = useTheme();
-
   const layout = useLayoutState();
 
-  const [bannerDismissed, setBannerDismissed] = useState(
-    () => localStorage.getItem('tg-banner-dismissed') === 'true'
-  );
+  // ── Onboarding banner state ───────────────────────────────────────────────
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    const uid = user?.id ?? '';
+    return localStorage.getItem(`onboarding_dismissed_${uid}`) === 'true';
+  });
+  const [contactsCount, setContactsCount] = useState(0);
+  const [meetingsCount, setMeetingsCount] = useState(0);
+
+  // Fetch counts once so OnboardingBanner can show accurate step status
+  useEffect(() => {
+    let active = true;
+    const fetchCounts = async () => {
+      try {
+        const [contactsRes, meetingsRes] = await Promise.all([
+          api.get<{ data: { contacts: unknown[] } }>('/contacts'),
+          api.get<{ data: { meetings: unknown[] } }>('/meetings'),
+        ]);
+        if (active) {
+          setContactsCount(contactsRes.data.data.contacts?.length ?? 0);
+          setMeetingsCount(meetingsRes.data.data.meetings?.length ?? 0);
+        }
+      } catch {
+        // Non-critical — banner just shows buttons as incomplete
+      }
+    };
+    fetchCounts();
+    return () => { active = false; };
+  }, []);
 
   const handleTelegramLinked = () => {
     updateUser({ telegramLinked: true });
-    setBannerDismissed(true);
-    localStorage.setItem('tg-banner-dismissed', 'true');
   };
 
   const handleBannerDismiss = () => {
+    const uid = user?.id ?? '';
     setBannerDismissed(true);
-    localStorage.setItem('tg-banner-dismissed', 'true');
+    localStorage.setItem(`onboarding_dismissed_${uid}`, 'true');
   };
 
-  // Banner connect — opens bot URL after fetching a token
-  const handleBannerConnect = async () => {
-    try {
-      const res = await api.get<{ data: { botUrl: string } }>('/auth/telegram-token');
-      window.open(res.data.data.botUrl, '_blank');
-    } catch (err) {
-      console.error('Failed to get Telegram token', err);
-    }
-  };
+  // Show the onboarding banner for users who haven't dismissed and haven't done all steps
+  const isOnboardingComplete =
+    (user?.telegramLinked ?? false) && contactsCount > 0 && meetingsCount > 0;
+  const showBanner = !bannerDismissed && !isOnboardingComplete;
 
   const userName = user?.name ?? '';
   const userEmail = user?.email ?? '';
-  const showBanner = !user?.telegramLinked && !bannerDismissed;
 
   return (
     <div className={`flex h-screen w-screen overflow-hidden ${theme === 'dark' ? 'gradient-bg-dark' : 'gradient-bg'} text-warm-900 dark:text-cream-50`}>
@@ -448,6 +512,9 @@ export default function Dashboard() {
                 userName={userName}
                 userEmail={userEmail}
                 telegramLinked={user?.telegramLinked}
+                credits={user?.credits}
+                plan={user?.plan}
+                usage={user?.usage ? { meetingsThisMonth: user.usage.meetingsThisMonth, meetingsLimit: user.usage.meetingsLimit } : undefined}
                 onLogout={logout}
                 onTelegramLinked={handleTelegramLinked}
                 theme={theme}
@@ -495,12 +562,16 @@ export default function Dashboard() {
           
           {/* Nested routes */}
           <main className="flex-1 min-w-0 overflow-hidden flex flex-col">
-            {/* Onboarding banner — Step 7 */}
+            {/* Onboarding banner — Phase S6 */}
             <AnimatePresence>
-              {showBanner && (
-                <TelegramBanner
-                  onConnect={handleBannerConnect}
+              {user && showBanner && (
+                <OnboardingBanner
+                  userId={user.id}
+                  telegramLinked={user.telegramLinked ?? false}
+                  contactsCount={contactsCount}
+                  meetingsCount={meetingsCount}
                   onDismiss={handleBannerDismiss}
+                  onTelegramLinked={handleTelegramLinked}
                 />
               )}
             </AnimatePresence>
@@ -515,6 +586,7 @@ export default function Dashboard() {
               <Route path="contacts" element={<ContactsPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="billing" element={<BillingPage />} />
 
             </Routes>
           </main>
@@ -591,6 +663,9 @@ export default function Dashboard() {
                 userName={userName}
                 userEmail={userEmail}
                 telegramLinked={user?.telegramLinked}
+                credits={user?.credits}
+                plan={user?.plan}
+                usage={user?.usage ? { meetingsThisMonth: user.usage.meetingsThisMonth, meetingsLimit: user.usage.meetingsLimit } : undefined}
                 onLogout={logout}
                 onTelegramLinked={handleTelegramLinked}
                 theme={theme}
@@ -641,6 +716,9 @@ export default function Dashboard() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Credits Exhausted Modal — listens for global 'credits-exhausted' event */}
+      <CreditsExhaustedModal />
 
     </div>
   );

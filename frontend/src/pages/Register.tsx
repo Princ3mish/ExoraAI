@@ -25,7 +25,7 @@ export default function Register() {
       const response = await api.post('/auth/register', { name, email, password });
       const { token, user } = response.data.data;
       login(token, user);
-      navigate('/dashboard');
+      navigate('/onboarding');
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string; errors?: { message: string }[] } } };
       const data = axiosErr.response?.data;

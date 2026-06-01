@@ -43,7 +43,8 @@ export const webhook = async (req, res) => {
  */
 export const getCallLogs = asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit ?? '20', 10), 100);
-  const logs = await voiceService.getCallLogs(limit);
+  const { userId, role } = req.user;
+  const logs = await voiceService.getCallLogs(limit, userId, role);
   res.status(200).json({ status: 200, data: logs });
 });
 
