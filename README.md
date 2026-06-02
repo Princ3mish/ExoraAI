@@ -36,7 +36,7 @@
 
 ---
 
-## 🔗 Live Demo
+ 🔗 Live Demo
 
 > **[Try Exora AI →](https://your-vercel-url-here)** *(update with your deployed URL)*
 
@@ -224,7 +224,7 @@ The frontend calendar updates in real time (polling every 30 seconds). You can s
 
 ---
 
-## 🚀 Self-Host Setup
+🚀 Self-Host Setup
 
 ### Prerequisites
 
