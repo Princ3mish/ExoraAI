@@ -3,19 +3,11 @@
 > Your AI-Powered Meeting Assistant — schedule, confirm, 
 > and prepare meetings automatically.
 
-## 🔗 Live Demo
+ 🔗 Live Demo
 
-**[Try Exora AI →](your-vercel-url-here)**
+**[Try Exora AI →](https://exora-ai-beta.vercel.app)**
 
-| | |
-|---|---|
-| **Demo Email** | demo@exora.ai |
-| **Demo Password** | demo123 |
-
-> The demo account comes pre-loaded with sample meetings 
-> so you can explore all features immediately.
-
-## ✨ What it does
+ ✨ What it does
 
 Exora AI automates your entire meeting workflow:
 
@@ -24,7 +16,7 @@ Exora AI automates your entire meeting workflow:
 3. **AI calls to confirm** — 30 minutes before the meeting, Exora calls each participant to confirm attendance and collect agenda topics
 4. **You just show up** — open your calendar and see who's confirmed and what everyone wants to discuss
 
-## 🛠 Tech Stack
+ 🛠 Tech Stack
 
 | Layer | Technologies |
 |---|---|
@@ -36,7 +28,7 @@ Exora AI automates your entire meeting workflow:
 | Bot | Telegram (Grammy) |
 | Payments | Stripe |
 
-## 🚀 Self-Host Setup
+🚀 Self-Host Setup
 
 ### Prerequisites
 - Node.js 18+
